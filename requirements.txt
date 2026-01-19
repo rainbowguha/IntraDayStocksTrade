@@ -1,0 +1,16 @@
+pandas
+numpy==1.26.4
+gunicorn
+websocket-client
+urllib3==1.26.17
+requests
+scikit-learn==1.5.1
+arch==7.1.0
+hurst==0.0.5
+secure-smtplib
+flask
+pytz
+yfinance
+hmmlearn==0.3.2
+scipy ==1.13.1
+./dist/pandas_ta-0.3.14b0-py3-none-any.whl
