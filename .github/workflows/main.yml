@@ -1,0 +1,11 @@
+name: Ping Render App streamlit
+
+on:
+  workflow_dispatch: # lets you run it manually too
+jobs:
+  wakeup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send wake-up request
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" https://streamlit-5s70.onrender.com/process_signals
