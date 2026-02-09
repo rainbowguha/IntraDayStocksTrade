@@ -186,8 +186,11 @@ class PredictorEngine:
 
     def generate_features(self, params):
         normalize_features = None
+
         if self.strategy_name=='MomTrading_{}'.format(self.symbol) or self.strategy_name=='MeanTrading_{}'.format(self.symbol):
             normalize_features = self.MomTrading(**params)
+            normalize_features = normalize_features.replace([np.inf , -np.inf] , np.nan)
+            normalize_features = normalize_features.fillna(normalize_features.median())
 
         return normalize_features.tail(5)
 

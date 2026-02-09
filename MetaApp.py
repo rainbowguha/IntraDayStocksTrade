@@ -9,7 +9,7 @@ from datetime import datetime
 import requests
 import smtplib
 from email.mime.text import MIMEText
-from Params import Weight
+from fyersApi import HIST_BROKER_
 
 class MetaApi:
     Symbol_historyUpdates = []
@@ -61,13 +61,14 @@ class MetaApi:
             print(self.error)
 
     def UpdateHistory(self):
+        market = HIST_BROKER_().login()
 
         for symbol in self.symbol_list :
             u=0
             while u < self.retry_count :
                 try :
                     file_path=os.path.join('database_fx' , symbol , '{}.csv'.format(symbol))
-                    history=GetHistory(symbol)
+                    history=GetHistory(market , symbol)
                     history = history[history.index.date!=datetime.now(self.time_zone).today().date()]
                     history.to_csv(file_path)
                     self.Symbol_historyUpdates.append(symbol)
@@ -99,38 +100,32 @@ class MetaApi:
                     self.Signals[ticker]=SIG
                     self.sl_points[ticker]=SL[1 if SIG > 0 else -1] if SIG else 0
 
-            # print(self.Signals)
+            print(self.Signals)
         except Exception as e:
             self.error="Error:@GEN_SIGNALS:{}".format(e)
             print(self.error)
 
     def place_order(self):
 
-        InitialCapital=100000
-        margin_x=5
-        AvailableMargin=InitialCapital * margin_x
-
-        ID_ = {'AXIS' : 'AXIS' ,'TCS' : 'TCS' ,'Adaniports':'ADANI' ,'MM':'MM' ,'Reliance':'REL' , 'CIPLA':'CIPLA' , 'JSWSTEEL':'JSW'}
+        ID_ = {'NIFTYBANK':'BNF' , 'NIFTY50':'NF'}
 
         for symbol , signal in self.Signals.items():
 
-            token = 'b80dee13-9db5-4bc5-b96a-845c4da8ed76'
+            token = 'd2759082-db16-4f0a-844b-97bb8071d4b8'
 
             if not signal :
                 continue
 
             trade_data={
-                f"SL_{ID_[symbol]}" : self.sl_points[symbol] ,
-                f"V_{ID_[symbol]}" : Weight[symbol] * AvailableMargin ,
                 f"Y_PRED_{ID_[symbol]}" : 1 if signal > 0 else -1 ,
+                f"SL_{ID_[symbol]}" : self.sl_points[symbol]
             }
 
             for key , val in trade_data.items() :
                 url=f"https://api.tradetron.tech/api?auth-token={token}&key={key}&value={val}"
-                # print(url)
                 requests.get(url)
 
-            time.sleep(3)
+            time.sleep(2)
 
     def send_email_notification(self ,subject):
 

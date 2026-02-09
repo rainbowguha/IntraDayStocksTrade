@@ -4,17 +4,17 @@ from flask import Flask, render_template,request , jsonify
 import threading
 import __main__
 
-
+from Params import GetHistory
 # setting Attributes to Main
 setattr(__main__ , 'NoiseEnhancer' ,NoiseEnhancer)
 setattr(__main__ , 'BaggingBootstrapper' ,BaggingBootstrapper)
 
 Algo = MetaApi()
-Crypto = ['AXIS' , 'TCS'   , 'Reliance' , 'Adaniports' , 'MM' , 'CIPLA' , 'JSWSTEEL']
-
+Indices = ['NIFTYBANK'  , 'NIFTY50']
+#
 def primary_task():
     Algo.Refresh_Var()
-    Algo.symbol_list = Crypto
+    Algo.symbol_list = Indices
     Algo.UpdateHistory()
     Algo.GenerateSignals()
 
@@ -50,3 +50,4 @@ def process_signals():
 
 if __name__ == '__main__':
     app.run(debug=True)
+

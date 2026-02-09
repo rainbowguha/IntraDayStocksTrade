@@ -1,4 +1,4 @@
-pandas
+pandas==2.2.3
 numpy==1.26.4
 gunicorn
 websocket-client
@@ -10,7 +10,8 @@ hurst==0.0.5
 secure-smtplib
 flask
 pytz
-yfinance
+fyers_apiv3
+pyotp
 hmmlearn==0.3.2
 scipy ==1.13.1
 ./dist/pandas_ta-0.3.14b0-py3-none-any.whl

@@ -4,18 +4,13 @@ import pandas as pd
 import numpy as np
 from hurst import compute_Hc
 from sklearn.linear_model import LinearRegression
-import yfinance as yf
+from fyersApi import  fetch_ohlcv
 
 
 # defining strategy parameters
 params_1 = [{'strategy': 'MomTrading', 'Components': None, 'interval': 'D'}]
 
-Strategy_On_params = {'Adaniports':params_1 , 'AXIS':params_1 , 'TCS':params_1 , 'Reliance':params_1 , 'MM':params_1 , 'CIPLA':params_1 , 'JSWSTEEL':params_1}
-
-# equal weights
-Wi = 1/len(Strategy_On_params)
-
-Weight = {'AXIS':Wi  , 'TCS':Wi , 'Reliance':Wi , 'MM':Wi , 'Adaniports':Wi , 'CIPLA':Wi , 'JSWSTEEL':Wi}
+Strategy_On_params = {'NIFTYBANK':params_1 , 'NIFTY50':params_1}
 
 
 def load_csv(symbol ,drop_date=None):
@@ -76,17 +71,9 @@ def ComputeRegime_HURST(dt , window):
     regime = pd.Series(rolling_hurst_exponents , rolling_hurst_exponents.index  , name = 'HurstRegime')
     return regime
 
-def GetHistory(symbol):
-     return get_delta_historical_data(symbol)
 
+def GetHistory(market , symbol) :
+    symbol_ID={'NIFTYBANK' : 'NSE:NIFTYBANK-INDEX' , 'NIFTY50' : 'NSE:NIFTY50-INDEX'}
 
-def get_delta_historical_data(symbol , interval='1d' , period='1y') :
-    symbol_ID={'AXIS' : 'AXISBANK.NS' , 'TCS' : 'TCS.NS' , 'Adaniports':'ADANIPORTS.NS' , 'MM':'M&M.NS' , 'Reliance':'RELIANCE.NS' , 'CIPLA':'CIPLA.NS' , 'JSWSTEEL':'JSWSTEEL.NS'}
-
-    try:
-        data = yf.download(symbol_ID[symbol] , period=period , interval=interval , multi_level_index=False)
-        data.columns = ['close' , 'high' , 'low' ,  'open' , 'volume']
-    except:
-        print('{} Unable to Download:'.format(symbol))
-
-    return data
+    ohlcv= fetch_ohlcv(market , symbol_ID[symbol]  , limit=365)
+    return ohlcv
