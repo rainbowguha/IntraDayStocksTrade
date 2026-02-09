@@ -8,4 +8,4 @@ jobs:
     steps:
       - name: Send wake-up request
         run: |
-          curl -s -o /dev/null -w "%{http_code}" https://streamlit-5s70.onrender.com/process_signals
+          curl -s -o /dev/null -w "%{http_code}" https://optiontrading-5pze.onrender.com/process_signals
