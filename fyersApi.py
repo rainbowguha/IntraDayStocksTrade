@@ -18,7 +18,7 @@ def getEncodedString(string) :
     return base64_bytes.decode("ascii")
 
 
-class HIST_BROKER_() :
+class HIST_BROKER_:
     def __init__(self) :
         self.BROKER_APP=None
         self.BROKER_SOCKET=None
