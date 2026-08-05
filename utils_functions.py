@@ -6,7 +6,9 @@ import numpy as np
 import pytz
 from fyersApi import fetch_ohlcv
 
+
 time_zone = pytz.timezone('Asia/Kolkata')
+DECIMAL_POINTS = 5
 
 def load_csv(symbol ,drop_date=None):
     file_path = os.path.join('database_fx', symbol, f'{symbol}')
@@ -25,23 +27,25 @@ def load_str_params(strategy_name):
     return params , market_regime_params , SL_COMM , trained_upto , len(params)
 
 def load_models(n , strategy_name):
-    file_name = "{}_{}.pkl".format(strategy_name , n)
+    file_name = 'base_model_{}.pkl'.format(n)
     _PATH_=os.path.join('Models' , strategy_name , file_name)
     with open(_PATH_ , 'rb') as f:
         mod = pk.load(f)
     return mod
 
-def load_trade_history(strategy_name):
-    file_name = 'trades'
-    _PATH_ = os.path.join('TradeHistory' , strategy_name, file_name)
-    trades = pd.read_csv(_PATH_ , index_col=0 , parse_dates=True)
+def load_meta_models(strategy_name):
+    file_name = 'meta_model.pkl'
+    _PATH_=os.path.join('Models' , strategy_name , file_name)
+    with open(_PATH_ , 'rb') as f:
+        mod = pk.load(f)
+    return mod
 
-    file_name = 'weight_params'
-    _PATH_ = os.path.join('TradeHistory' , strategy_name, file_name)
-    with open(_PATH_  ,'r') as f:
-        weight_params = json.load(f)
-
-    return trades , weight_params
+def load_dist_extractor(strategy_name):
+    file_name = 'dist_extractor.pkl'
+    _PATH_=os.path.join('Models' , strategy_name , file_name)
+    with open(_PATH_ , 'rb') as f:
+        mod = pk.load(f)
+    return [m for m in mod]
 
 
 def GetHistory(market , symbol ,limit=365):
@@ -84,3 +88,12 @@ def kaufMan_EF_Ratio(dt , n) :
     absolute_change=abs(dt-dt.shift(n))
     total_change=dt.diff().abs().rolling(window=n).sum()
     return absolute_change / total_change
+
+def compute_rolling_sharpe(returns , window: int = 20) -> pd.Series :
+    if not isinstance(returns , pd.Series) :
+        returns=pd.Series(returns)
+
+    roll_mean=returns.rolling(window).mean()
+    roll_std=returns.rolling(window).std().replace(0 , np.nan)
+    sharpe=(roll_mean / roll_std) * np.sqrt(252)
+    return sharpe.fillna(0)

@@ -13,8 +13,6 @@ class MetaApi:
         self.symbol_list = np.unique([v for v in strategies.values()])
         self._ON_SYMBOL_ = []
         self.__SIGNALS__ = {}
-        self.weight_params = {}
-        self.Weights = {}
         self.sl_params = {}
         self.load_str()
 
@@ -76,6 +74,7 @@ class MetaApi:
                 continue
 
             trade_data={
+                f"TP_MUL_{ID[symbol]}" : self.sl_params[__STR__]['tp_multiplier'] ,
                 f"MUL_{ID[symbol]}" : self.sl_params[__STR__]['multiplier'] ,
                 f"LK_{ID[symbol]}" : self.sl_params[__STR__]['lookback'] ,
                 f"Y_PRED_{ID[symbol]}" : signal ,
@@ -83,6 +82,7 @@ class MetaApi:
 
             for key , val in trade_data.items() :
                 url=f"https://api.tradetron.tech/api?auth-token={token}&key={key}&value={val}"
+                # print(url)
                 requests.get(url)
 
             time.sleep(3)

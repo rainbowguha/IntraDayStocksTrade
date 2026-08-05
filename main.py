@@ -6,6 +6,7 @@ from flask import Flask, render_template,request , jsonify
 import threading
 
 setattr(__main__ , 'BaggingBootstrapper' ,BaggingBootstrapper)
+setattr(__main__ , 'MahalanobisMetaFeatureExtractor' ,MahalanobisMetaFeatureExtractor)
 
 
 api = MetaApi()

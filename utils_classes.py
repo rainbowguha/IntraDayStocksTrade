@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin, clone ,TransformerMixin
 import pandas_ta as ta
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from scipy.stats import chi2
 
 
 class BaggingBootstrapper(BaseEstimator , ClassifierMixin) :
@@ -17,14 +21,16 @@ class BaggingBootstrapper(BaseEstimator , ClassifierMixin) :
         self.random_state=random_state
         self.estimators_=[]
         self.classes_=None
+        self.bin_edges_=None
 
     def _bootstrap_indices(self , n_samples) :
         rng=np.random.default_rng(self.random_state)
         return [rng.choice(n_samples , size=n_samples , replace=True) for _ in range(self.n_estimators)]
 
     def _volatility_indices(self , Vflag) :
-        bins=np.sort(Vflag.dropna().unique())
-        return [np.flatnonzero(Vflag.values == b) for b in bins]
+        bin_codes , bin_edges=pd.qcut(Vflag , q=self.n_estimators , labels=False , retbins=True , duplicates='drop')
+        self.bin_edges_=bin_edges
+        return [np.flatnonzero(bin_codes.values == b) for b in range(len(bin_edges)-1)]
 
     def _noise_col_indices(self , X) :
         if isinstance(X , pd.DataFrame) :
@@ -37,7 +43,6 @@ class BaggingBootstrapper(BaseEstimator , ClassifierMixin) :
         n_samples , n_classes=len(indices) , one_hot_y.shape[1]
 
         clf=clone(self.base_estimator)
-
         if hasattr(clf , "random_state") :
             clf.set_params(random_state=int(rng.integers(0 , 100_000)))
 
@@ -84,65 +89,94 @@ class BaggingBootstrapper(BaseEstimator , ClassifierMixin) :
             for s , indices in zip(seeds , estimator_indices)]
         return self
 
-    def predict_proba(self , X) :
+    def predict_proba(self , X , Vflag=None) :
         X_arr=np.asarray(X)
+        n_samples=X_arr.shape[0]
         n_classes=len(self.classes_)
-        class_to_idx={c : i for i , c in enumerate(self.classes_)}
-        out=np.zeros((X_arr.shape[0] , n_classes) , dtype=np.float64)
-        for clf in self.estimators_ :
-            proba=clf.predict_proba(X_arr)
+        out=np.zeros((n_samples , n_classes) , dtype=np.float64)
+
+        if Vflag is None or self.bin_edges_ is None :
+            class_to_idx={c : i for i , c in enumerate(self.classes_)}
+            for clf in self.estimators_ :
+                proba=clf.predict_proba(X_arr)
+                if len(clf.classes_) == n_classes and np.array_equal(clf.classes_ , self.classes_) :
+                    out+=proba
+                else :
+                    for j , cls in enumerate(clf.classes_) :
+                        out[: , class_to_idx[cls]]+=proba[: , j]
+            out/=len(self.estimators_)
+            return out
+
+        # Route samples based on saved volatility bin edges
+        v_arr=np.asarray(Vflag)
+        bin_ids=np.digitize(v_arr , self.bin_edges_[1 :-1])
+
+        for bin_idx , clf in enumerate(self.estimators_) :
+            sample_mask=(bin_ids == bin_idx)
+            if not np.any(sample_mask) :
+                continue
+
+            sub_X=X_arr[sample_mask]
+            proba=clf.predict_proba(sub_X)
+
             if len(clf.classes_) == n_classes and np.array_equal(clf.classes_ , self.classes_) :
-                out+=proba
+                out[sample_mask]=proba
             else :
-                for j , cls in enumerate(clf.classes_) :
-                    out[: , class_to_idx[cls]]+=proba[: , j]
-        out/=len(self.estimators_)
+                clf_class_to_idx={c : i for i , c in enumerate(clf.classes_)}
+                for j , cls in enumerate(self.classes_) :
+                    if cls in clf_class_to_idx :
+                        out[sample_mask , j]=proba[: , clf_class_to_idx[cls]]
+
         return out
 
-    def predict(self , X) :
-        return self.classes_[np.argmax(self.predict_proba(X) , axis=1)]
+    def predict(self , X , Vflag=None) :
+        return self.classes_[np.argmax(self.predict_proba(X , Vflag=Vflag) , axis=1)]
 
 
-class RiskAdjustmentEngine:
-    def __init__(self):
-        pass
+class MahalanobisMetaFeatureExtractor(BaseEstimator , TransformerMixin) :
+    """Computes Mahalanobis Distance & Chi-Square OOD Probability with Shrinkage."""
 
-    def GetRiskData(self , x ,  lookback , multiplier):
+    def __init__(self , use_shrinkage: bool = True ,
+                 skip_patterns=("_VOL_RAW_REG_" , "_HURST_RAW_REG_" , "gaps_binary")) :
+        self.use_shrinkage=use_shrinkage
+        self.mean_=None
+        self.inv_cov_=None
+        self.n_features_=None
+        self.skip_patterns=skip_patterns
 
-        atr = ta.atr(x['high'], x['low'], x['close'], lookback)
-        atr_dist_pct = (atr.shift(1) * multiplier) / x['open']
-        
-#       days
-        SL_RANG_POS=((x['open']-x['low']) / x['open']).rename('SL_RANG_POS')
-        SL_RANG_NEG=((x['high']-x['open']) / x['open']).rename('SL_RANG_NEG')
-        
-#       bullish days
-        MAX_STOP_POS = atr_dist_pct.rename('MAX_STOP_POS')
+    def _preprocess_X(self , x) :
+        X=x.copy()
+        X=X.loc[: , ~X.columns.duplicated()]
+        Valid_col=[col for col in X.columns if not any(p in col for p in self.skip_patterns)]
+        return np.asarray(X[Valid_col] , dtype=np.float64)
 
-#       bearish days
-        MAX_STOP_NEG = atr_dist_pct.rename('MAX_STOP_NEG')
+    def fit(self , x: list) :
+        X=self._preprocess_X(x)
+        self.n_features_=X.shape[1]
+        self.mean_=np.mean(X , axis=0)
 
-        # setting up the risk data
-        RiskData=pd.concat([-SL_RANG_POS ,  -MAX_STOP_POS, -SL_RANG_NEG ,-MAX_STOP_NEG] , axis=1)
+        cov=np.cov(X , rowvar=False)
+        if self.use_shrinkage :
+            shrink_factor=0.05
+            trace=np.trace(cov) if cov.ndim == 2 else cov
+            cov=(1-shrink_factor) * cov+shrink_factor * np.eye(self.n_features_) * trace / self.n_features_
 
-        return RiskData , (atr * multiplier).iloc[-1]
+        self.inv_cov_=np.linalg.pinv(cov)
+        return self
 
-    def GetAdjustedReturns(self  ,t_returns , y_pred , RiskData):
-        strategy_returns = (t_returns.copy() * y_pred).rename('strategy_returns')
-        y_pred = pd.Series(y_pred , index=t_returns.index , name='predictions')
+    def transform(self , x: list) -> np.ndarray :
+        X=self._preprocess_X(x)
+        diff=X-self.mean_
 
-        x = pd.concat([RiskData  , strategy_returns  , y_pred] ,axis=1).dropna()
+        dist_sq=np.einsum('ij,jk,ik->i' , diff , self.inv_cov_ , diff)
+        dist_sq=np.maximum(dist_sq , 0.0)
 
-# #     trading conditions
-        bull_sl =(x['SL_RANG_POS']<=x['MAX_STOP_POS']) & (x['predictions'] > 0) & (x['MAX_STOP_POS'] < 0)
-        bear_sl= (x['SL_RANG_NEG']<=x['MAX_STOP_NEG']) & (x['predictions'] < 0) & (x['MAX_STOP_NEG'] < 0)
-        rets=x['strategy_returns'].copy()
+        distances=np.sqrt(dist_sq)
+        ood_probs=chi2.cdf(dist_sq , df=self.n_features_)
+        return np.column_stack([distances , ood_probs])
 
-#       sl hit:
-        rets[bull_sl] = x['MAX_STOP_POS'][bull_sl]
-        rets[bear_sl] = x['MAX_STOP_NEG'][bear_sl]
 
-        return rets
+
 
 
 

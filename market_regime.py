@@ -77,3 +77,8 @@ def compute_market_regime(DT , **kwargs):
                                      _HURST_RAW_REG_.rename('_HURST_RAW_REG_BS')] , axis=1)
 
     return market_regime
+
+def ComputeVol_Z(DT , **kwargs):
+    Vol_Period = kwargs['Vol_Params']['lookback']
+    daily_change = ((DT['close']-DT['close'].shift()) / DT['close'].shift())
+    return daily_change.rolling(window=Vol_Period).std().rename('Vol_Z')
