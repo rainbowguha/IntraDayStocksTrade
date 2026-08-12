@@ -47,6 +47,11 @@ def load_dist_extractor(strategy_name):
         mod = pk.load(f)
     return [m for m in mod]
 
+def load_trade_logs(strategy_name):
+    file_name = 'trade_logs.csv'
+    _PATH_=os.path.join('Models' , strategy_name , file_name)
+    return pd.read_csv(_PATH_,index_col=0 , parse_dates=True)
+
 
 def GetHistory(market , symbol ,limit=365):
     data = pd.DataFrame()
