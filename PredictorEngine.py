@@ -128,7 +128,7 @@ class PredictorEngine:
             to_dates = common_index[-1]
             trades.append(pd.concat([trade_logs[trade_logs!=0.0] , active_trade_rets[from_date:]])[:to_dates].iloc[-long_window:])
 
-        if np.any([len(trade)<long_window for trade in trades]):
+        if np.all([len(trade)<long_window for trade in trades]):
             return meta_features
 
         lst_indices = X[-1].index[-1]
@@ -148,25 +148,31 @@ class PredictorEngine:
 
         for i ,trade_rets in enumerate(trades):
 
-            # 1. Trade-level Sharpe Velocity
-            t_fast_sharpe=compute_rolling_sharpe(trade_rets , window=short_window)
-            t_slow_sharpe=compute_rolling_sharpe(trade_rets , window=long_window)
-            trade_sharpe_velocity=t_fast_sharpe-t_slow_sharpe
+            if not trade_rets.empty:
+                # 1. Trade-level Sharpe Velocity
+                t_fast_sharpe=compute_rolling_sharpe(trade_rets , window=short_window)
+                t_slow_sharpe=compute_rolling_sharpe(trade_rets , window=long_window)
+                trade_sharpe_velocity=t_fast_sharpe-t_slow_sharpe
 
-            # 2. Trade-level Win Rate Ratio
-            t_fast_win=(trade_rets > 0).astype(float).rolling(window=short_window).mean()
-            t_slow_win=(trade_rets > 0).astype(float).rolling(window=long_window).mean()
-            trade_winrate_ratio=(t_fast_win+eps) / (t_slow_win+eps)
+                # 2. Trade-level Win Rate Ratio
+                t_fast_win=(trade_rets > 0).astype(float).rolling(window=short_window).mean()
+                t_slow_win=(trade_rets > 0).astype(float).rolling(window=long_window).mean()
+                trade_winrate_ratio=(t_fast_win+eps) / (t_slow_win+eps)
 
-            # 3. Trade-level Downside Volatility Ratio
-            t_downside_rets=np.minimum(0 , trade_rets)
-            t_fast_down_vol=np.sqrt((t_downside_rets ** 2).rolling(window=short_window).mean())
-            t_slow_down_vol=np.sqrt((t_downside_rets ** 2).rolling(window=long_window).mean())
-            trade_downside_vol_ratio=(t_fast_down_vol+eps) / (t_slow_down_vol+eps)
+                # 3. Trade-level Downside Volatility Ratio
+                t_downside_rets=np.minimum(0 , trade_rets)
+                t_fast_down_vol=np.sqrt((t_downside_rets ** 2).rolling(window=short_window).mean())
+                t_slow_down_vol=np.sqrt((t_downside_rets ** 2).rolling(window=long_window).mean())
+                trade_downside_vol_ratio=(t_fast_down_vol+eps) / (t_slow_down_vol+eps)
 
-            meta_features[f'sharpe_velocity_m{i}']=trade_sharpe_velocity.iloc[-1]
-            meta_features[f'winrate_ratio_m{i}']=trade_winrate_ratio.iloc[-1]
-            meta_features[f'downside_vol_ratio_m{i}'] = trade_downside_vol_ratio.iloc[-1]
+                meta_features[f'sharpe_velocity_m{i}']=trade_sharpe_velocity.iloc[-1]
+                meta_features[f'winrate_ratio_m{i}']=trade_winrate_ratio.iloc[-1]
+                meta_features[f'downside_vol_ratio_m{i}'] = trade_downside_vol_ratio.iloc[-1]
+
+            else:
+                meta_features[f'sharpe_velocity_m{i}']=0.0
+                meta_features[f'winrate_ratio_m{i}']=1
+                meta_features[f'downside_vol_ratio_m{i}'] = 1
 
             # proba based features
             meta_features[f'dir_sc_m{i}'] = dir_scores[i]
