@@ -76,9 +76,17 @@ def compute_market_regime(DT , **kwargs):
     market_regime = pd.concat([indicators , regime_confi_lvl , regime_age.rename('Regime_AGE_BS') , regime_switch_freq ,
                                      _HURST_RAW_REG_.rename('_HURST_RAW_REG_BS')] , axis=1)
 
-    return market_regime
+    # Vol_Z
+    Vol_Period=kwargs['Vol_Params']['lookback']
+    daily_change=((DT['close']-DT['close'].shift()) / DT['close'].shift())
+    Vol_Z = daily_change.rolling(window=Vol_Period).std().rename('Vol_Z')
 
-def ComputeVol_Z(DT , **kwargs):
-    Vol_Period = kwargs['Vol_Params']['lookback']
-    daily_change = ((DT['close']-DT['close'].shift()) / DT['close'].shift())
-    return daily_change.rolling(window=Vol_Period).std().rename('Vol_Z')
+    # IntradayVol
+    IntradayChange=(DT['close']-DT['open']) / DT['open']
+    IntradayVol=IntradayChange.rolling(window=Vol_Period).std().rename('IntradayVol')
+
+    regime_lbs=pd.concat([regime_confi_lvl.rename('RegimeConfi_Meta') , IntradayVol , Vol_Z] , axis=1)
+
+    return market_regime , regime_lbs
+
+
